@@ -1,327 +1,102 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Name Processor</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-
-        .container {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        h1 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-        }
-
-        .upload-area {
-            border: 2px dashed #ccc;
-            border-radius: 10px;
-            padding: 40px;
-            text-align: center;
-            background-color: #fafafa;
-            margin-bottom: 20px;
-            cursor: pointer;
-            transition: border-color 0.3s;
-        }
-
-        .upload-area:hover {
-            border-color: #007cba;
-        }
-
-        .upload-area.dragover {
-            border-color: #007cba;
-            background-color: #f0f8ff;
-        }
-
-        input[type="file"] {
-            display: none;
-        }
-
-        button {
-            background-color: #007cba;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            margin: 5px;
-        }
-
-        button:hover {
-            background-color: #005a87;
-        }
-
-        .results {
-            margin-top: 30px;
-            display: none;
-        }
-
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .count {
-            background-color: #007cba;
-            color: white;
-            padding: 5px 15px;
-            border-radius: 15px;
-            font-size: 14px;
-        }
-
-        textarea {
-            width: 100%;
-            height: 300px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-            font-family: monospace;
-            font-size: 14px;
-            resize: vertical;
-        }
-
-        .file-info {
-            margin: 15px 0;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            font-size: 14px;
-            color: #666;
-        }
-
-        .error {
-            color: #d32f2f;
-            background-color: #ffebee;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px 0;
-        }
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; }
+        .drop-zone:hover { border-color: #999; }
+        button { padding: 10px 20px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        textarea { width: 100%; height: 300px; margin: 10px 0; font-family: monospace; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Image Name Processor</h1>
-        <p style="text-align: center; color: #666; margin-bottom: 30px;">
-            Upload images with {front} and {back} in filenames to extract unique base names
-        </p>
-
-        <div class="upload-area" id="uploadArea">
-            <p style="font-size: 18px; margin-bottom: 10px;">📁 Drop files here or click to browse</p>
-            <button type="button" onclick="document.getElementById('fileInput').click()">
-                Select Files
-            </button>
-            <input type="file" id="fileInput" multiple accept="image/*">
-        </div>
-
-        <div class="file-info" id="fileInfo" style="display: none;"></div>
-        <div class="error" id="errorDiv" style="display: none;"></div>
-
-        <div class="results" id="results">
-            <div class="results-header">
-                <h2>Unique Base Names</h2>
-                <div>
-                    <span class="count" id="count">0 names</span>
-                    <button onclick="copyToClipboard()">Copy All</button>
-                    <button onclick="downloadTxt()">Download</button>
-                    <button onclick="clearAll()" style="background-color: #d32f2f;">Clear</button>
-                </div>
-            </div>
-            <textarea id="resultsTextarea" readonly></textarea>
-        </div>
+    <h1>Image Name Processor</h1>
+    
+    <div class="drop-zone" onclick="document.getElementById('files').click()">
+        Click here to select files or drag and drop
+    </div>
+    
+    <input type="file" id="files" multiple style="display: none;">
+    
+    <div id="status"></div>
+    
+    <div id="results" class="hidden">
+        <h3>Results (<span id="count">0</span> unique names):</h3>
+        <textarea id="output" readonly></textarea>
+        <br>
+        <button onclick="copy()">Copy</button>
+        <button onclick="download()">Download</button>
+        <button onclick="clear()">Clear</button>
     </div>
 
     <script>
-        let uniqueNames = new Set();
-
-        // Get DOM elements
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('fileInput');
-        const fileInfo = document.getElementById('fileInfo');
-        const errorDiv = document.getElementById('errorDiv');
+        const files = document.getElementById('files');
+        const status = document.getElementById('status');
         const results = document.getElementById('results');
-        const resultsTextarea = document.getElementById('resultsTextarea');
+        const output = document.getElementById('output');
         const count = document.getElementById('count');
+        
+        let names = new Set();
 
-        // File input change handler
-        fileInput.addEventListener('change', function(e) {
-            handleFiles(e.target.files);
-        });
+        files.onchange = function() {
+            process(this.files);
+        };
 
-        // Drag and drop handlers
-        uploadArea.addEventListener('click', function() {
-            fileInput.click();
-        });
-
-        uploadArea.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-
-        uploadArea.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-        });
-
-        uploadArea.addEventListener('drop', function(e) {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            handleFiles(e.dataTransfer.files);
-        });
-
-        function handleFiles(files) {
-            try {
-                hideError();
-                
-                if (!files || files.length === 0) {
-                    showError('No files selected');
-                    return;
-                }
-
-                // Convert FileList to Array and filter for images
-                const imageFiles = Array.from(files).filter(file => 
-                    file.type.startsWith('image/')
-                );
-
-                if (imageFiles.length === 0) {
-                    showError('No image files found');
-                    return;
-                }
-
-                showFileInfo(`Processing ${imageFiles.length} image files...`);
-
-                // Process each file
-                imageFiles.forEach(file => {
-                    const baseName = extractBaseName(file.name);
-                    if (baseName) {
-                        uniqueNames.add(baseName);
-                    }
-                });
-
-                displayResults();
-                showFileInfo(`Processed ${imageFiles.length} files, found ${uniqueNames.size} unique names`);
-
-            } catch (error) {
-                showError('Error processing files: ' + error.message);
-                console.error('Error:', error);
-            }
-        }
-
-        function extractBaseName(fileName) {
-            try {
-                // Remove file extension
-                let name = fileName.replace(/\.[^/.]+$/, '');
-                
-                // Remove {front} and {back} patterns (case insensitive)
-                name = name.replace(/\{front\}/gi, '');
-                name = name.replace(/\{back\}/gi, '');
-                
-                // Remove extra whitespace
-                name = name.replace(/\s+/g, ' ').trim();
-                
-                return name || null;
-            } catch (error) {
-                console.error('Error extracting base name from:', fileName, error);
-                return null;
-            }
-        }
-
-        function displayResults() {
-            if (uniqueNames.size === 0) {
-                results.style.display = 'none';
-                return;
-            }
-
-            // Sort names alphabetically
-            const sortedNames = Array.from(uniqueNames).sort();
+        function process(fileList) {
+            names.clear();
+            status.innerHTML = 'Processing ' + fileList.length + ' files...';
             
-            // Display results
-            resultsTextarea.value = sortedNames.join('\n');
-            count.textContent = `${uniqueNames.size} names`;
-            results.style.display = 'block';
-        }
-
-        function copyToClipboard() {
-            try {
-                resultsTextarea.select();
-                resultsTextarea.setSelectionRange(0, 99999); // For mobile devices
+            for (let i = 0; i < fileList.length; i++) {
+                let name = fileList[i].name;
+                name = name.replace(/\.[^/.]+$/, ''); // remove extension
+                name = name.replace(/\{front\}/gi, ''); // remove {front}
+                name = name.replace(/\{back\}/gi, ''); // remove {back}
+                name = name.replace(/\s+/g, ' ').trim(); // clean spaces
                 
-                if (navigator.clipboard) {
-                    navigator.clipboard.writeText(resultsTextarea.value).then(function() {
-                        alert('Copied to clipboard!');
-                    }).catch(function() {
-                        // Fallback
-                        document.execCommand('copy');
-                        alert('Copied to clipboard!');
-                    });
-                } else {
-                    // Fallback for older browsers
-                    document.execCommand('copy');
-                    alert('Copied to clipboard!');
+                if (name) {
+                    names.add(name);
                 }
-            } catch (error) {
-                showError('Failed to copy to clipboard');
             }
+            
+            let sorted = Array.from(names).sort();
+            output.value = sorted.join('\n');
+            count.textContent = sorted.length;
+            results.classList.remove('hidden');
+            status.innerHTML = 'Done! Found ' + sorted.length + ' unique names.';
         }
 
-        function downloadTxt() {
-            try {
-                const content = resultsTextarea.value;
-                const blob = new Blob([content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'unique-image-names.txt';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            } catch (error) {
-                showError('Failed to download file');
-            }
+        function copy() {
+            output.select();
+            document.execCommand('copy');
+            alert('Copied!');
         }
 
-        function clearAll() {
-            uniqueNames.clear();
-            results.style.display = 'none';
-            fileInput.value = '';
-            hideFileInfo();
-            hideError();
+        function download() {
+            let blob = new Blob([output.value], {type: 'text/plain'});
+            let url = URL.createObjectURL(blob);
+            let a = document.createElement('a');
+            a.href = url;
+            a.download = 'image-names.txt';
+            a.click();
+            URL.revokeObjectURL(url);
         }
 
-        function showFileInfo(message) {
-            fileInfo.textContent = message;
-            fileInfo.style.display = 'block';
+        function clear() {
+            names.clear();
+            results.classList.add('hidden');
+            status.innerHTML = '';
+            files.value = '';
         }
 
-        function hideFileInfo() {
-            fileInfo.style.display = 'none';
-        }
-
-        function showError(message) {
-            errorDiv.textContent = message;
-            errorDiv.style.display = 'block';
-        }
-
-        function hideError() {
-            errorDiv.style.display = 'none';
-        }
+        // Drag and drop
+        document.body.ondragover = function(e) { e.preventDefault(); };
+        document.body.ondrop = function(e) {
+            e.preventDefault();
+            process(e.dataTransfer.files);
+        };
     </script>
 </body>
 </html>
